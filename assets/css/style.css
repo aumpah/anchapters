@@ -1,0 +1,165 @@
+:root {
+  --ac-brown: #5b3a29;
+  --ac-cream: #f7f1e8;
+  --ac-gold: #c69749;
+}
+
+body {
+  background-color: var(--ac-cream);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+footer {
+  margin-top: auto;
+}
+
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--ac-brown) !important;
+}
+
+.navbar {
+  background-color: #fff !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.btn-brand {
+  background-color: var(--ac-brown);
+  color: #fff;
+  border: none;
+}
+.btn-brand:hover {
+  background-color: #46291c;
+  color: #fff;
+}
+
+.card-buku {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+  border: none;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+.card-buku:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+}
+.card-buku img {
+  height: 260px;
+  object-fit: cover;
+  background: #eee;
+}
+
+.harga {
+  color: var(--ac-brown);
+  font-weight: 700;
+}
+
+.sidebar {
+  min-height: 100vh;
+  background-color: var(--ac-brown);
+}
+.sidebar a {
+  color: #f1e6d8;
+  text-decoration: none;
+  display: block;
+  padding: 12px 18px;
+  border-radius: 6px;
+  margin: 2px 8px;
+}
+.sidebar a:hover,
+.sidebar a.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.dashboard-card {
+  border-radius: 12px;
+  color: #fff;
+  padding: 20px;
+}
+.bg-brand1 {
+  background: linear-gradient(135deg, #5b3a29, #8a5a3d);
+}
+.bg-brand2 {
+  background: linear-gradient(135deg, #7a4b2a, #c69749);
+}
+.bg-brand3 {
+  background: linear-gradient(135deg, #3d5a80, #5f8cbf);
+}
+.bg-brand4 {
+  background: linear-gradient(135deg, #2f6b45, #5aa06f);
+}
+
+footer {
+  background-color: var(--ac-brown);
+  color: #f1e6d8;
+  padding: 25px 0;
+  margin-top: 60px;
+}
+
+/* Hover navbar link */
+.navbar-nav .nav-link {
+  position: relative;
+  transition: color 0.2s ease;
+}
+.navbar-nav .nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 2px;
+  background: var(--ac-gold);
+  transition: width 0.25s ease;
+}
+.navbar-nav .nav-link:hover {
+  color: var(--ac-brown) !important;
+}
+.navbar-nav .nav-link:hover::after {
+  width: 100%;
+}
+
+/* Tombol */
+.btn-brand,
+.btn-outline-dark,
+.btn-outline-secondary {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.btn-brand:hover,
+.btn-outline-dark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
+}
+
+/* Card kategori di beranda */
+.card-kategori {
+  transition: transform 0.2s ease;
+  cursor: pointer;
+}
+.card-kategori:hover {
+  transform: scale(1.03);
+}
+
+/* Fade-in halus untuk section */
+.fade-in {
+  animation: fadeInUp 0.5s ease both;
+}
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

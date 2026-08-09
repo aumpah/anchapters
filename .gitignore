@@ -1,0 +1,5 @@
+/assets/images/cover/*
+!/assets/images/cover/default.png
+/assets/images/kategori/*
+!/assets/images/kategori/default.jpg
+.DS_Store
