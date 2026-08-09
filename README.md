@@ -1,8 +1,4 @@
-# An Chapters — Website Bookstore (PHP Native + MySQL)
-
-Website toko buku dengan 2 aktor: **Admin** dan **User**, dibangun dengan PHP native (mysqli),
-Bootstrap 5, dan SweetAlert2.
-
+# An Chapters — Website Bookstore 
 ## 📁 Struktur Folder
 
 ```
@@ -36,27 +32,8 @@ anchapters/
 │   ├── register.php
 │   └── logout.php
 ├── database.sql       <- import ke phpMyAdmin/MySQL
-└── index.php           <- redirect ke user/home.php
-```
 
-## 🔧 Cara Menjalankan (XAMPP / Laragon)
-
-1. **Copy folder** `anchapters/` ke dalam `htdocs` (XAMPP) atau `www` (Laragon).
-2. **Import database**:
-   - Buka phpMyAdmin → buat database baru bernama `an_chapters` (atau biarkan, karena
-     `database.sql` sudah punya `CREATE DATABASE IF NOT EXISTS`).
-   - Import file `database.sql`.
-3. **Buat akun admin** (karena hash password contoh di SQL hanya placeholder):
-   - Daftar dulu lewat halaman Register sebagai user biasa.
-   - Lalu di phpMyAdmin, ubah kolom `role` pada tabel `users` untuk akun tersebut dari
-     `user` menjadi `admin`. Setelah itu login ulang → otomatis masuk ke dashboard admin.
-4. **Cek `config/koneksi.php`** — sesuaikan `$user`, `$pass`, `$dbname` jika berbeda dari default XAMPP (`root`, password kosong).
-5. **Cek `BASE_URL` di `config/functions.php`** — sesuaikan dengan nama folder project kamu.
-   Contoh: jika folder project bernama `bookstore`, ubah jadi:
-   ```php
-   define('BASE_URL', '/bookstore/');
-   ```
-6. Buka browser: `http://localhost/anchapters/`
+http://localhost/anchapters/`
 
 ## ✅ Fitur yang Sudah Diimplementasikan
 
@@ -85,9 +62,3 @@ anchapters/
 - Proteksi halaman dengan `cek_login_user()` dan `cek_login_admin()`.
 - Validasi upload cover: hanya jpg/jpeg/png/webp, maksimal 2MB.
 - Stok tidak bisa minus (`GREATEST(0, stok-qty)` saat checkout + validasi form admin).
-
-## 🚀 Kemungkinan Pengembangan Lanjutan
-- Ganti query mysqli manual menjadi PDO + prepared statement penuh.
-- Tambah fitur reset password via email.
-- Tambah role-based middleware terpusat (saat ini masih per-file `cek_login_admin()`).
-- Integrasi payment gateway asli jika ingin selain COD.
