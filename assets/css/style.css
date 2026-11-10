@@ -163,3 +163,78 @@ footer {
     transform: translateY(0);
   }
 }
+
+/* Micro-interactions: tetap tenang dan tidak mengganggu konten. */
+.card,
+.form-control,
+.form-select,
+.btn,
+.navbar-nav .nav-link {
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+.form-control:focus,
+.form-select:focus {
+  border-color: rgba(91, 58, 41, 0.48);
+  box-shadow: 0 0 0 0.18rem rgba(91, 58, 41, 0.1);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.contact-direct {
+  border: 1px solid rgba(91, 58, 41, 0.1);
+  border-radius: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Search autocomplete */
+.search-suggestions {
+  position: absolute;
+  z-index: 1050;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(61, 43, 31, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(30, 20, 12, 0.1);
+}
+#searchBook {
+  position: relative;
+}
+#searchBook + .search-suggestions {
+  width: 100%;
+}
+.search-suggestion-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  color: #3d2b1f;
+  text-decoration: none;
+  border-bottom: 1px solid #f2eee9;
+}
+.search-suggestion-item:last-child {
+  border-bottom: 0;
+}
+.search-suggestion-item:hover {
+  background: #fbf7f1;
+  color: #3d2b1f;
+}
+.search-suggestion-empty {
+  padding: 12px;
+  color: #777;
+  font-size: 0.9rem;
+}

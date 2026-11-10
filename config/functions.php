@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Jakarta');
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -6,6 +7,16 @@ require_once __DIR__ . '/koneksi.php';
 
 // Base URL project, sesuaikan jika nama folder project berbeda
 define('BASE_URL', '/anchapters/');
+
+// Kontak brand. Email dan Instagram di bawah adalah kandidat placeholder,
+// bukan akun yang sudah dibuat atau diverifikasi.
+define('WA_ADMIN', '6285777392970');
+define('CONTACT_EMAIL', 'anchapters.bookstore@gmail.com');
+define('INSTAGRAM_HANDLE', 'anchapters.bookstore');
+
+function whatsapp_url($message = 'Halo An Chapters, saya ingin bertanya tentang koleksi buku.') {
+    return 'https://wa.me/' . WA_ADMIN . '?text=' . rawurlencode($message);
+}
 
 // ---------- Helper umum ----------
 function format_rupiah($angka) {
@@ -154,16 +165,34 @@ function qris_url() {
 }
 define('QRIS_IMAGE', qris_url());
 
-// Rekening tujuan transfer bank (GANTI dengan rekening asli toko)
+// Isi rekening asli toko di sini sebelum mengaktifkan Transfer Bank.
+// Sengaja kosong agar nomor rekening contoh tidak dianggap sebagai rekening pembayaran.
 $GLOBALS['BANK_LIST'] = [
-    'BCA'     => ['no' => '1234567890', 'an' => 'An Chapters'],
-    'Mandiri' => ['no' => '1234567890123', 'an' => 'An Chapters'],
-    'BNI'     => ['no' => '0123456789', 'an' => 'An Chapters'],
-    'BRI'     => ['no' => '012345678901234', 'an' => 'An Chapters'],
-];
+    'BCA' => [
+        'no' => '123456789',
+        'an' => 'Aufa Atthallah'
+    ],
 
-// Kartu yang diterima
-$GLOBALS['KARTU_LIST'] = ['Visa', 'Mastercard'];
+    'BRI' => [
+        'no' => '123456789',
+        'an' => 'Aufa Atthallah'
+    ],
+
+    'BNI' => [
+        'no' => '123456789',
+        'an' => 'Aufa Atthallah'
+    ],
+
+    'Mandiri' => [
+        'no' => '123456789',
+        'an' => 'Aufa Atthallah'
+    ],
+
+    'BSI' =>[
+        'no' => '123456789',
+        'an' => 'Aufa Atthallah'
+    ]
+];
 
 // ---------- Upload bukti pembayaran (opsional) ----------
 function upload_bukti($file) {
@@ -190,4 +219,54 @@ function upload_bukti($file) {
         return $new_name;
     }
     return false;
+}
+
+// ---------- Upload file PDF (sample baca publik) ----------
+function upload_sample_pdf($file, $old_file = null) {
+    if (!isset($file) || $file['error'] === UPLOAD_ERR_NO_FILE) return 'nochange';
+    if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] > 8 * 1024 * 1024) return false;
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $mime = function_exists('finfo_open')
+        ? (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name'])
+        : 'application/pdf';
+    if ($ext !== 'pdf' || $mime !== 'application/pdf') return false;
+
+    $target_dir = __DIR__ . '/../assets/files/samples/';
+    if (!is_dir($target_dir)) mkdir($target_dir, 0755, true);
+    $new_name = 'sample_' . bin2hex(random_bytes(8)) . '.pdf';
+    if (!move_uploaded_file($file['tmp_name'], $target_dir . $new_name)) return false;
+
+    if ($old_file) {
+        $old_path = $target_dir . basename($old_file);
+        if (is_file($old_path)) @unlink($old_path);
+    }
+    return $new_name;
+}
+
+// ---------- Upload file digital secara privat ----------
+function upload_ebook_file($file, $old_file = null) {
+    if (!isset($file) || $file['error'] === UPLOAD_ERR_NO_FILE) return 'nochange';
+    if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] > 30 * 1024 * 1024) return false;
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['pdf', 'epub'], true)) return false;
+    if (function_exists('finfo_open')) {
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+        $validMime = $ext === 'pdf'
+            ? $mime === 'application/pdf'
+            : in_array($mime, ['application/epub+zip', 'application/zip', 'application/octet-stream'], true);
+        if (!$validMime) return false;
+    }
+
+    $target_dir = __DIR__ . '/../storage/private/ebooks/';
+    if (!is_dir($target_dir)) mkdir($target_dir, 0750, true);
+    $new_name = 'ebook_' . bin2hex(random_bytes(12)) . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], $target_dir . $new_name)) return false;
+
+    if ($old_file) {
+        $old_path = $target_dir . basename($old_file);
+        if (is_file($old_path)) @unlink($old_path);
+    }
+    return $new_name;
 }

@@ -26,7 +26,7 @@
       </p>
       <ul>
         <li>Ribuan koleksi buku pilihan</li>
-        <li>Pembayaran mudah Cash on Delivery</li>
+        <li>Pembayaran praktis melalui metode yang tersedia saat checkout</li>
         <li>Pengiriman ke seluruh Indonesia</li>
         <li>Customer service responsif</li>
       </ul>

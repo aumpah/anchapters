@@ -5,3 +5,7 @@
 .DS_Store
 /assets/images/bukti/*
 !/assets/images/bukti/.gitkeep
+/storage/private/ebooks/*
+!/storage/private/ebooks/.htaccess
+/assets/files/samples/*
+!/assets/files/samples/.gitkeep

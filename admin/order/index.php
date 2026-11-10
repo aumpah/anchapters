@@ -6,7 +6,7 @@ cek_login_admin();
 $statusFilter = $_GET['status'] ?? '';
 $where = $statusFilter ? "WHERE o.status = '" . clean($koneksi, $statusFilter) . "'" : '';
 
-$list = mysqli_query($koneksi, "SELECT o.*, u.nama, u.email FROM orders o JOIN users u ON o.id_user=u.id_user $where ORDER BY o.tanggal DESC");
+$list = mysqli_query($koneksi, "SELECT o.*, COALESCE(o.nama_penerima,u.nama) AS nama, COALESCE(o.email_penerima,u.email) AS email FROM orders o LEFT JOIN users u ON o.id_user=u.id_user $where ORDER BY o.tanggal DESC");
 
 $page_title = 'Kelola Pesanan';
 include '../includes/header.php';
@@ -31,7 +31,7 @@ include '../includes/header.php';
       <tbody>
       <?php while ($o = mysqli_fetch_assoc($list)): ?>
         <tr>
-          <td>#<?= $o['id_order'] ?></td>
+          <td><strong><?= htmlspecialchars($o['kode_pesanan']) ?></strong><br><span class="small text-muted">#<?= $o['id_order'] ?></span></td>
           <td><?= htmlspecialchars($o['nama']) ?><br><span class="text-muted small"><?= htmlspecialchars($o['email']) ?></span></td>
           <td><?= date('d M Y, H:i', strtotime($o['tanggal'])) ?></td>
           <td><?= format_rupiah($o['total']) ?></td>

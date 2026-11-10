@@ -2,22 +2,28 @@
 /** @var mysqli $koneksi */
 require_once '../config/functions.php';
 
-if (!is_login()) {
-    redirect('auth/login.php');
+$id = (int) ($_GET['id'] ?? 0);
+$order = null;
+
+if (is_admin()) {
+    $order = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT o.*, COALESCE(o.nama_penerima,u.nama) AS nama, COALESCE(o.email_penerima,u.email) AS email, COALESCE(o.telepon_penerima,u.telepon) AS telepon FROM orders o LEFT JOIN users u ON o.id_user=u.id_user WHERE o.id_order=$id"));
+} elseif (is_login()) {
+    $id_user = (int) $_SESSION['id_user'];
+    $order = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT o.*, COALESCE(o.nama_penerima,u.nama) AS nama, COALESCE(o.email_penerima,u.email) AS email, COALESCE(o.telepon_penerima,u.telepon) AS telepon FROM orders o LEFT JOIN users u ON o.id_user=u.id_user WHERE o.id_order=$id AND o.id_user=$id_user"));
+} else {
+    $kode = trim($_GET['kode'] ?? '');
+    $email = trim($_GET['email'] ?? '');
+    if ($kode !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $stmt = mysqli_prepare($koneksi, "SELECT o.*, COALESCE(o.nama_penerima,u.nama) AS nama, COALESCE(o.email_penerima,u.email) AS email, COALESCE(o.telepon_penerima,u.telepon) AS telepon FROM orders o LEFT JOIN users u ON o.id_user=u.id_user WHERE o.kode_pesanan=? AND o.email_penerima=? LIMIT 1");
+        mysqli_stmt_bind_param($stmt, 'ss', $kode, $email);
+        mysqli_stmt_execute($stmt);
+        $order = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+        if ($order) $id = (int)$order['id_order'];
+    }
 }
 
-$id = (int) ($_GET['id'] ?? 0);
-$id_user = (int) $_SESSION['id_user'];
-
-// User hanya boleh melihat struk miliknya sendiri, admin boleh semua
-$whereUser = is_admin() ? '' : "AND o.id_user = $id_user";
-$order = mysqli_fetch_assoc(mysqli_query($koneksi,
-    "SELECT o.*, u.nama, u.email, u.telepon
-     FROM orders o JOIN users u ON o.id_user = u.id_user
-     WHERE o.id_order = $id $whereUser"));
-
 if (!$order) {
-    redirect(is_admin() ? 'admin/order/index.php' : 'user/history.php');
+    redirect(is_admin() ? 'admin/order/index.php' : (is_login() ? 'user/history.php' : 'user/track.php'));
 }
 
 $detail = mysqli_query($koneksi,
@@ -25,8 +31,8 @@ $detail = mysqli_query($koneksi,
      JOIN buku b ON od.id_buku = b.id_buku
      WHERE od.id_order = $id");
 
-$no_struk  = 'ACH-' . date('Ymd', strtotime($order['tanggal'])) . '-' . str_pad($order['id_order'], 5, '0', STR_PAD_LEFT);
-$metode    = $order['metode_bayar'] ?: 'COD';
+$no_struk  = $order['kode_pesanan'] ?: ('ACH-' . date('Ymd', strtotime($order['tanggal'])) . '-' . str_pad($order['id_order'], 5, '0', STR_PAD_LEFT));
+$metode    = $order['metode_bayar'] ?: 'QRIS';
 $bayar_txt = $metode . ($order['detail_bayar'] ? ' - ' . $order['detail_bayar'] : '');
 
 // Label status pembayaran di struk
@@ -47,8 +53,8 @@ $bukti_url = $order['bukti_bayar']
     ? BASE_URL . 'assets/images/bukti/' . rawurlencode(basename($order['bukti_bayar']))
     : null;
 
-$baru = isset($_GET['baru']) && !is_admin();
-$balik = is_admin() ? BASE_URL . 'admin/order/detail.php?id=' . $order['id_order'] : BASE_URL . 'user/history.php';
+$baru = isset($_GET['baru']) && !is_admin() && is_login();
+$balik = is_admin() ? BASE_URL . 'admin/order/detail.php?id=' . $order['id_order'] : (is_login() ? BASE_URL . 'user/history.php' : BASE_URL . 'user/track.php?kode=' . urlencode($order['kode_pesanan']) . '&email=' . urlencode($order['email']));
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -96,7 +102,7 @@ $balik = is_admin() ? BASE_URL . 'admin/order/detail.php?id=' . $order['id_order
 
       <table class="mt-2">
         <tr><td>No. Struk</td><td class="r"><?= $no_struk ?></td></tr>
-        <tr><td>No. Order</td><td class="r">#<?= $order['id_order'] ?></td></tr>
+        <tr><td>Kode Pesanan</td><td class="r"><?= htmlspecialchars($order['kode_pesanan']) ?></td></tr>
         <tr><td>Tanggal Order</td><td class="r"><?= date('d M Y, H:i', strtotime($order['tanggal'])) ?></td></tr>
         <?php if ($order['tgl_bayar']): ?>
           <tr><td>Tanggal Bayar</td><td class="r"><?= date('d M Y, H:i', strtotime($order['tgl_bayar'])) ?></td></tr>
@@ -128,7 +134,11 @@ $balik = is_admin() ? BASE_URL . 'admin/order/detail.php?id=' . $order['id_order
           <td class="fw-bold fs-6">TOTAL</td>
           <td class="r fw-bold fs-6"><?= format_rupiah($order['total']) ?></td>
         </tr>
+        <tr><td>Subtotal Buku</td><td class="r"><?= format_rupiah($order['subtotal'] ?? $order['total']) ?></td></tr>
+        <?php if ((float)($order['ongkir'] ?? 0) > 0): ?><tr><td>Ongkir (pesanan lama)</td><td class="r"><?= format_rupiah($order['ongkir']) ?></td></tr><?php endif; ?>
+        <?php if (!empty($order['poin_digunakan'])): ?><tr><td>Poin ditukar (<?= (int)$order['poin_digunakan'] ?>)</td><td class="r">-<?= format_rupiah($order['potongan_poin']) ?></td></tr><?php endif; ?>
         <tr><td>Metode Bayar</td><td class="r"><?= htmlspecialchars($bayar_txt) ?></td></tr>
+        <?php if (!empty($order['gift_wrap'])): ?><tr><td colspan="2" style="padding-top:8px;"><strong>Gift wrap:</strong> Ya<br>Pesan kartu: <?= nl2br(htmlspecialchars($order['gift_message'] ?? '')) ?></td></tr><?php endif; ?>
       </table>
 
       <div class="text-center mt-3">

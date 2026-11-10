@@ -6,6 +6,7 @@
   <a href="<?= BASE_URL ?>admin/buku/index.php" class="<?= $currDir=='buku'?'active':'' ?>"> Data Buku</a>
   <a href="<?= BASE_URL ?>admin/user/index.php" class="<?= $currDir=='user'?'active':'' ?>"> Data User</a>
   <a href="<?= BASE_URL ?>admin/order/index.php" class="<?= $currDir=='order'?'active':'' ?>"> Pesanan</a>
+  <a href="<?= BASE_URL ?>admin/complaints/index.php" class="<?= $currDir=='complaints'?'active':'' ?>"> Komplain & Retur</a>
   <a href="<?= BASE_URL ?>admin/contact/index.php" class="<?= $currDir=='contact'?'active':'' ?>"> Pesan Masuk</a>
   <hr style="border-color:rgba(255,255,255,.2);margin:16px 8px;">
   <a href="<?= BASE_URL ?>auth/logout.php"> Logout</a>

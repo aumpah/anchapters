@@ -14,6 +14,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stok     = (int) $_POST['stok'];
     $deskripsi = clean($koneksi, $_POST['deskripsi']);
     $id_kategori = (int) $_POST['id_kategori'];
+    $isbn = clean($koneksi, $_POST['isbn'] ?? '');
+    $jumlah_halaman = ($_POST['jumlah_halaman'] ?? '') !== '' ? max(1, (int) $_POST['jumlah_halaman']) : 'NULL';
+    $tanggal_terbit = !empty($_POST['tanggal_terbit']) ? "'" . clean($koneksi, $_POST['tanggal_terbit']) . "'" : 'NULL';
+    $bahasa = clean($koneksi, $_POST['bahasa'] ?? 'Indonesia');
+    $format_buku = in_array($_POST['format_buku'] ?? 'Fisik', ['Fisik','E-book','Audiobook'], true) ? $_POST['format_buku'] : 'Fisik';
+    $format_sql = clean($koneksi, $format_buku);
+    $is_preorder = isset($_POST['is_preorder']) ? 1 : 0;
+    $tanggal_rilis = !empty($_POST['tanggal_rilis']) ? "'" . clean($koneksi, $_POST['tanggal_rilis']) . "'" : 'NULL';
 
     if ($stok < 0) $errors[] = "Stok tidak boleh minus.";
     if ($harga < 0) $errors[] = "Harga tidak boleh minus.";
@@ -29,9 +37,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    $samplePdf = 'NULL';
+    $ebookFile = 'NULL';
     if (empty($errors)) {
-        $q = "INSERT INTO buku (judul, penulis, penerbit, tahun, harga, stok, cover, deskripsi, id_kategori)
-              VALUES ('$judul','$penulis','$penerbit',$tahun,$harga,$stok,'$cover','$deskripsi',$id_kategori)";
+        $sampleUpload = upload_sample_pdf($_FILES['sample_pdf'] ?? null);
+        if ($sampleUpload === false) $errors[] = 'Preview harus berupa PDF maksimal 8MB.';
+        elseif ($sampleUpload !== 'nochange') $samplePdf = "'" . clean($koneksi, $sampleUpload) . "'";
+
+        $ebookUpload = upload_ebook_file($_FILES['file_digital'] ?? null);
+        if ($ebookUpload === false) $errors[] = 'File E-book harus PDF atau EPUB maksimal 30MB.';
+        elseif ($ebookUpload !== 'nochange') $ebookFile = "'" . clean($koneksi, $ebookUpload) . "'";
+    }
+
+    if (empty($errors)) {
+        $q = "INSERT INTO buku (judul, penulis, isbn, jumlah_halaman, penerbit, tahun, tanggal_terbit, bahasa, format_buku, harga, stok, cover, deskripsi, sample_pdf, file_digital, is_preorder, tanggal_rilis, id_kategori)
+              VALUES ('$judul','$penulis','$isbn',$jumlah_halaman,'$penerbit',$tahun,$tanggal_terbit,'$bahasa','$format_sql',$harga,$stok,'$cover','$deskripsi',$samplePdf,$ebookFile,$is_preorder,$tanggal_rilis,$id_kategori)";
         mysqli_query($koneksi, $q);
         $_SESSION['flash'] = ['type'=>'success','title'=>'Buku berhasil ditambah'];
         redirect('admin/buku/index.php');
@@ -93,6 +113,50 @@ include '../includes/header.php';
         </div>
         <input type="file" name="cover" id="inputCover" class="form-control" accept=".jpg,.jpeg,.png,.webp">
         <div class="form-text">Format jpg/jpeg/png/webp, maksimal 2MB.</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">ISBN</label>
+        <input type="text" name="isbn" class="form-control" value="<?= htmlspecialchars($_POST['isbn'] ?? '') ?>" maxlength="20">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Jumlah Halaman</label>
+        <input type="number" name="jumlah_halaman" class="form-control" min="1" value="<?= htmlspecialchars($_POST['jumlah_halaman'] ?? '') ?>">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Bahasa</label>
+        <input type="text" name="bahasa" class="form-control" value="<?= htmlspecialchars($_POST['bahasa'] ?? 'Indonesia') ?>">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Tanggal Terbit</label>
+        <input type="date" name="tanggal_terbit" class="form-control" value="<?= htmlspecialchars($_POST['tanggal_terbit'] ?? '') ?>">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Format Buku</label>
+        <select name="format_buku" class="form-select">
+          <?php foreach (['Fisik','E-book','Audiobook'] as $f): ?>
+            <option value="<?= $f ?>" <?= ($_POST['format_buku'] ?? 'Fisik')===$f?'selected':'' ?>><?= $f ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Tanggal Rilis (khusus PO)</label>
+        <input type="date" name="tanggal_rilis" class="form-control" value="<?= htmlspecialchars($_POST['tanggal_rilis'] ?? '') ?>">
+      </div>
+      <div class="col-12">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="is_preorder" id="isPreorder" <?= isset($_POST['is_preorder'])?'checked':'' ?>>
+          <label class="form-check-label" for="isPreorder">Tandai sebagai Pre-Order</label>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Preview PDF (opsional)</label>
+        <input type="file" name="sample_pdf" class="form-control" accept="application/pdf,.pdf">
+        <div class="form-text">Maksimal 8MB. Gunakan halaman contoh yang memang boleh dibagikan.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">File E-book (opsional)</label>
+        <input type="file" name="file_digital" class="form-control" accept="application/pdf,.pdf,.epub">
+        <div class="form-text">PDF/EPUB maksimal 30MB. File disimpan di folder privat.</div>
       </div>
       <div class="col-md-12">
         <label class="form-label">Deskripsi</label>

@@ -36,6 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $q = "INSERT INTO users (nama, email, password, alamat, telepon, role)
               VALUES ('$nama', '$email', '$hash', '$alamat', '$telepon', 'user')";
         if (mysqli_query($koneksi, $q)) {
+            $newUserId = (int) mysqli_insert_id($koneksi);
+            // Pesanan guest dengan email yang sama ikut muncul di riwayat akun baru.
+            mysqli_query($koneksi, "UPDATE orders SET id_user=$newUserId WHERE id_user IS NULL AND email_penerima='$email'");
             $_SESSION['register_success'] = true;
             redirect('auth/login.php');
         } else {
@@ -70,11 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form method="POST">
             <div class="mb-3">
                 <label class="form-label">Nama Lengkap</label>
-                <input type="text" name="nama" class="form-control" required value="<?= htmlspecialchars($_POST['nama'] ?? '') ?>">
+                <input type="text" name="nama" class="form-control" required value="<?= htmlspecialchars($_POST['nama'] ?? ($_GET['nama'] ?? '')) ?>">
             </div>
             <div class="mb-3">
                 <label class="form-label">Email</label>
-                <input type="email" name="email" class="form-control" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+                <input type="email" name="email" class="form-control" required value="<?= htmlspecialchars($_POST['email'] ?? ($_GET['email'] ?? '')) ?>">
             </div>
             <div class="mb-3">
                 <label class="form-label">Password</label>

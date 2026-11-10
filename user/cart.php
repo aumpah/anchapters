@@ -1,22 +1,30 @@
 <?php
 /** @var mysqli $koneksi */
 require_once '../config/functions.php';
-cek_login_user();
-$id_user = $_SESSION['id_user'];
+$isMember = is_login() && !is_admin();
+$id_user = $isMember ? (int) $_SESSION['id_user'] : 0;
+if (!$isMember && !isset($_SESSION['guest_cart'])) $_SESSION['guest_cart'] = [];
 
 // ---------- Update qty ----------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_qty'])) {
-    $id_cart = (int) $_POST['id_cart'];
-    $qty = max(1, (int) $_POST['qty']);
-
-    $row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT c.*, b.harga, b.stok FROM cart c JOIN buku b ON c.id_buku=b.id_buku WHERE c.id_cart=$id_cart AND c.id_user=$id_user"));
-    if ($row) {
-        if ($qty > $row['stok']) {
-            $_SESSION['flash'] = ['type' => 'error', 'title' => 'Qty melebihi stok tersedia'];
-        } else {
+    $itemId = (int) ($_POST['item_id'] ?? $_POST['id_cart'] ?? 0);
+    $qty = max(1, min(99, (int) ($_POST['qty'] ?? 1)));
+    if ($isMember) {
+        $row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT c.*, b.harga, b.stok, b.is_preorder FROM cart c JOIN buku b ON b.id_buku=c.id_buku WHERE c.id_cart=$itemId AND c.id_user=$id_user LIMIT 1"));
+        if ($row && (empty($row['is_preorder']) ? $qty <= (int)$row['stok'] : true)) {
             $subtotal = $qty * $row['harga'];
-            mysqli_query($koneksi, "UPDATE cart SET qty=$qty, subtotal=$subtotal WHERE id_cart=$id_cart");
-            $_SESSION['flash'] = ['type' => 'success', 'title' => 'Keranjang diperbarui'];
+            mysqli_query($koneksi, "UPDATE cart SET qty=$qty, subtotal=$subtotal WHERE id_cart=$itemId");
+            $_SESSION['flash'] = ['type'=>'success','title'=>'Keranjang diperbarui'];
+        } elseif ($row) {
+            $_SESSION['flash'] = ['type'=>'error','title'=>'Qty melebihi stok tersedia'];
+        }
+    } else {
+        $book = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT stok,is_preorder FROM buku WHERE id_buku=$itemId LIMIT 1"));
+        if ($book && (empty($book['is_preorder']) ? $qty <= (int)$book['stok'] : true)) {
+            $_SESSION['guest_cart'][$itemId] = $qty;
+            $_SESSION['flash'] = ['type'=>'success','title'=>'Keranjang diperbarui'];
+        } elseif ($book) {
+            $_SESSION['flash'] = ['type'=>'error','title'=>'Qty melebihi stok tersedia'];
         }
     }
     redirect('user/cart.php');
@@ -24,21 +32,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_qty'])) {
 
 // ---------- Hapus item ----------
 if (isset($_GET['hapus'])) {
-    $id_cart = (int) $_GET['hapus'];
-    mysqli_query($koneksi, "DELETE FROM cart WHERE id_cart=$id_cart AND id_user=$id_user");
-    $_SESSION['flash'] = ['type' => 'success', 'title' => 'Item dihapus dari keranjang'];
+    $itemId = (int) $_GET['hapus'];
+    if ($isMember) {
+        mysqli_query($koneksi, "DELETE FROM cart WHERE id_cart=$itemId AND id_user=$id_user");
+    } else {
+        unset($_SESSION['guest_cart'][$itemId]);
+    }
+    $_SESSION['flash'] = ['type'=>'success','title'=>'Item dihapus dari keranjang'];
     redirect('user/cart.php');
 }
 
-$q = mysqli_query($koneksi, "SELECT c.*, b.judul, b.cover, b.harga, b.stok FROM cart c
-                              JOIN buku b ON c.id_buku = b.id_buku
-                              WHERE c.id_user = $id_user");
-$total = 0;
 $items = [];
-while ($row = mysqli_fetch_assoc($q)) {
-    $items[] = $row;
-    $total += $row['subtotal'];
+$total = 0;
+if ($isMember) {
+    $q = mysqli_query($koneksi, "SELECT c.*, b.judul,b.cover,b.harga,b.stok,b.is_preorder FROM cart c JOIN buku b ON b.id_buku=c.id_buku WHERE c.id_user=$id_user");
+    while ($row = mysqli_fetch_assoc($q)) $items[] = $row;
+} else {
+    $guestCart = $_SESSION['guest_cart'] ?? [];
+    $ids = array_values(array_filter(array_map('intval', array_keys($guestCart))));
+    if ($ids) {
+        $idSql = implode(',', $ids);
+        $q = mysqli_query($koneksi, "SELECT * FROM buku WHERE id_buku IN ($idSql)");
+        while ($book = mysqli_fetch_assoc($q)) {
+            $qty = max(1, (int) $guestCart[$book['id_buku']]);
+            $items[] = [
+                'id_cart' => $book['id_buku'], 'id_buku' => $book['id_buku'],
+                'judul' => $book['judul'], 'cover' => $book['cover'], 'harga' => $book['harga'],
+                'stok' => $book['stok'], 'is_preorder' => $book['is_preorder'], 'qty' => $qty,
+                'subtotal' => $qty * $book['harga'],
+            ];
+        }
+    }
 }
+foreach ($items as $row) $total += (float) $row['subtotal'];
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -53,7 +79,8 @@ while ($row = mysqli_fetch_assoc($q)) {
 <?php include 'includes/navbar.php'; ?>
 
 <div class="container my-5">
-  <h3 class="fw-bold mb-4">Keranjang Belanja</h3>
+  <h3 class="fw-bold mb-2">Keranjang Belanja</h3>
+  <?php if (!$isMember): ?><p class="text-muted small mb-4">Anda berbelanja sebagai tamu. Detail penerima akan diminta saat checkout.</p><?php endif; ?>
 
   <?php if (empty($items)): ?>
     <div class="text-center py-5">
@@ -63,32 +90,13 @@ while ($row = mysqli_fetch_assoc($q)) {
   <?php else: ?>
     <div class="table-responsive bg-white rounded-3 shadow-sm p-3">
       <table class="table align-middle">
-        <thead>
-          <tr>
-            <th>Buku</th>
-            <th>Harga</th>
-            <th style="width:140px;">Qty</th>
-            <th>Subtotal</th>
-            <th></th>
-          </tr>
-        </thead>
+        <thead><tr><th>Buku</th><th>Harga</th><th style="width:160px;">Qty</th><th>Subtotal</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($items as $it): ?>
           <tr>
-            <td>
-              <div class="d-flex align-items-center gap-2">
-                <img src="<?= cover_url($it['cover']) ?>" onerror="this.onerror=null;this.src='<?= cover_url() ?>'" style="width:50px;height:65px;object-fit:cover;border-radius:6px;">
-                <span><?= htmlspecialchars($it['judul']) ?></span>
-              </div>
-            </td>
+            <td><div class="d-flex align-items-center gap-2"><img src="<?= cover_url($it['cover']) ?>" onerror="this.onerror=null;this.src='<?= cover_url() ?>'" style="width:50px;height:65px;object-fit:cover;border-radius:6px;"><span><?= htmlspecialchars($it['judul']) ?><?php if (!empty($it['is_preorder'])): ?><span class="badge bg-warning-subtle text-dark ms-1">PO</span><?php endif; ?></span></div></td>
             <td><?= format_rupiah($it['harga']) ?></td>
-            <td>
-              <form method="POST" class="d-flex gap-1">
-                <input type="hidden" name="id_cart" value="<?= $it['id_cart'] ?>">
-                <input type="number" name="qty" value="<?= $it['qty'] ?>" min="1" max="<?= $it['stok'] ?>" class="form-control form-control-sm" style="width:70px;">
-                <button type="submit" name="update_qty" class="btn btn-sm btn-outline-secondary">↻</button>
-              </form>
-            </td>
+            <td><form method="POST" class="d-flex gap-1"><input type="hidden" name="item_id" value="<?= $it['id_cart'] ?>"><input type="number" name="qty" value="<?= $it['qty'] ?>" min="1" max="<?= !empty($it['is_preorder']) ? 99 : max(1,(int)$it['stok']) ?>" class="form-control form-control-sm" style="width:70px;"><button type="submit" name="update_qty" class="btn btn-sm btn-outline-secondary">↻</button></form></td>
             <td class="harga"><?= format_rupiah($it['subtotal']) ?></td>
             <td><a href="?hapus=<?= $it['id_cart'] ?>" class="btn btn-sm btn-outline-danger btn-hapus">Hapus</a></td>
           </tr>
@@ -99,11 +107,8 @@ while ($row = mysqli_fetch_assoc($q)) {
 
     <div class="d-flex justify-content-end mt-4">
       <div class="card p-3" style="min-width:320px;">
-        <div class="d-flex justify-content-between mb-2">
-          <span>Total</span>
-          <span class="harga fs-5"><?= format_rupiah($total) ?></span>
-        </div>
-        <a href="checkout.php" class="btn btn-brand w-100">Checkout</a>
+        <div class="d-flex justify-content-between mb-2"><span>Subtotal Buku</span><span class="harga fs-5"><?= format_rupiah($total) ?></span></div>
+        <a href="checkout.php" class="btn btn-brand w-100">Lanjut ke Checkout</a>
       </div>
     </div>
   <?php endif; ?>
@@ -111,14 +116,14 @@ while ($row = mysqli_fetch_assoc($q)) {
 
 <?php include 'includes/footer.php'; ?>
 <script>
-document.querySelectorAll('.btn-hapus').forEach(btn=>{
-  btn.addEventListener('click', function(e){
-    e.preventDefault();
+document.querySelectorAll('.btn-hapus').forEach(btn => {
+  btn.addEventListener('click', function (event) {
+    event.preventDefault();
     const href = this.href;
-    Swal.fire({
-      title:'Hapus item ini?', icon:'warning', showCancelButton:true,
-      confirmButtonText:'Ya, hapus', confirmButtonColor:'#5b3a29'
-    }).then(res=>{ if(res.isConfirmed) window.location.href = href; });
+    Swal.fire({ title: 'Hapus item ini?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya, hapus', confirmButtonColor: '#5b3a29' })
+      .then(result => { if (result.isConfirmed) window.location.href = href; });
   });
 });
 </script>
+</body>
+</html>

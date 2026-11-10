@@ -4,9 +4,14 @@ require_once '../config/functions.php';
 
 // ---------- Ambil parameter search & filter ----------
 $keyword     = isset($_GET['q']) ? clean($koneksi, $_GET['q']) : '';
-$searchBy    = isset($_GET['by']) ? $_GET['by'] : 'judul'; // judul | penulis | kategori
+$searchBy    = isset($_GET['by']) ? $_GET['by'] : 'semua'; // semua | judul | penulis | kategori
 $kategoriId  = isset($_GET['kategori']) ? (int) $_GET['kategori'] : 0;
-$sort        = isset($_GET['sort']) ? $_GET['sort'] : 'terbaru'; // terbaru | murah | mahal
+$format      = isset($_GET['format']) ? $_GET['format'] : '';
+$stokFilter  = isset($_GET['stok']) ? $_GET['stok'] : '';
+$hargaMin    = isset($_GET['harga_min']) ? max(0, (float) $_GET['harga_min']) : '';
+$hargaMax    = isset($_GET['harga_max']) ? max(0, (float) $_GET['harga_max']) : '';
+$ratingMin   = isset($_GET['rating']) ? min(5, max(0, (float) $_GET['rating'])) : 0;
+$sort        = isset($_GET['sort']) ? $_GET['sort'] : 'terbaru';
 $page        = isset($_GET['page']) ? max(1, (int) $_GET['page']) : 1;
 $limit       = 10;
 $offset      = ($page - 1) * $limit;
@@ -19,6 +24,8 @@ if ($keyword !== '') {
         $where .= " AND b.penulis LIKE '%$keyword%'";
     } elseif ($searchBy === 'kategori') {
         $where .= " AND k.nama_kategori LIKE '%$keyword%'";
+    } elseif ($searchBy === 'semua') {
+        $where .= " AND (b.judul LIKE '%$keyword%' OR b.penulis LIKE '%$keyword%')";
     } else {
         $where .= " AND b.judul LIKE '%$keyword%'";
     }
@@ -26,10 +33,26 @@ if ($keyword !== '') {
 if ($kategoriId > 0) {
     $where .= " AND b.id_kategori = $kategoriId";
 }
+if (in_array($format, ['Fisik', 'E-book', 'Audiobook'], true)) {
+    $formatSql = clean($koneksi, $format);
+    $where .= " AND b.format_buku = '$formatSql'";
+}
+if ($hargaMin !== '') $where .= " AND b.harga >= " . (float) $hargaMin;
+if ($hargaMax !== '') $where .= " AND b.harga <= " . (float) $hargaMax;
+if ($stokFilter === 'tersedia') $where .= " AND (b.stok > 0 OR b.is_preorder = 1)";
+if ($stokFilter === 'habis') $where .= " AND b.stok <= 0 AND b.is_preorder = 0";
+if ($ratingMin > 0) {
+    $where .= " AND COALESCE((SELECT AVG(ub.rating) FROM ulasan_buku ub WHERE ub.id_buku=b.id_buku),0) >= " . (float) $ratingMin;
+}
 
-$orderBy = "b.created_at DESC";
-if ($sort === 'murah') $orderBy = "b.harga ASC";
-if ($sort === 'mahal') $orderBy = "b.harga DESC";
+$sortOptions = [
+    'terbaru' => 'b.created_at DESC',
+    'murah' => 'b.harga ASC',
+    'mahal' => 'b.harga DESC',
+    'abjad' => 'b.judul ASC',
+    'bestseller' => "(SELECT COALESCE(SUM(od.qty),0) FROM order_detail od JOIN orders o ON o.id_order=od.id_order WHERE od.id_buku=b.id_buku AND o.status IN ('Dibayar','Diproses','Dikirim','Selesai')) DESC, b.created_at DESC",
+];
+$orderBy = $sortOptions[$sort] ?? $sortOptions['terbaru'];
 
 // ---------- Hitung total data untuk pagination ----------
 $totalQ = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM buku b LEFT JOIN kategori k ON b.id_kategori = k.id_kategori $where");
@@ -38,12 +61,13 @@ $totalData = $totalRow['total'];
 $totalPage = max(1, ceil($totalData / $limit));
 
 // ---------- Ambil data buku ----------
-$q = "SELECT b.*, k.nama_kategori FROM buku b LEFT JOIN kategori k ON b.id_kategori = k.id_kategori
+$q = "SELECT b.*, k.nama_kategori,
+        (SELECT AVG(rating) FROM ulasan_buku WHERE id_buku=b.id_buku) AS rating_rata,
+        (SELECT COUNT(*) FROM ulasan_buku WHERE id_buku=b.id_buku) AS rating_jumlah
+      FROM buku b LEFT JOIN kategori k ON b.id_kategori = k.id_kategori
       $where ORDER BY $orderBy LIMIT $limit OFFSET $offset";
 $bukuList = mysqli_query($koneksi, $q);
 
-// ---------- Ambil semua kategori untuk dropdown filter ----------
-$kategoriList = mysqli_query($koneksi, "SELECT * FROM kategori ORDER BY nama_kategori");
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -109,43 +133,7 @@ $kategoriList = mysqli_query($koneksi, "SELECT * FROM kategori ORDER BY nama_kat
       </div>
     <?php endwhile; ?>
   </div>
-  <!-- Search & Filter -->
-  <form method="GET" class="row g-2 align-items-end bg-white p-3 rounded-3 shadow-sm mb-4">
-    <div class="col-md-4">
-      <label class="form-label small text-muted mb-1">Cari Buku</label>
-      <input type="text" name="q" class="form-control" placeholder="Kata kunci..." value="<?= htmlspecialchars($keyword) ?>">
-    </div>
-    <div class="col-md-2">
-      <label class="form-label small text-muted mb-1">Berdasarkan</label>
-      <select name="by" class="form-select">
-        <option value="judul" <?= $searchBy=='judul'?'selected':'' ?>>Judul</option>
-        <option value="penulis" <?= $searchBy=='penulis'?'selected':'' ?>>Penulis</option>
-        <option value="kategori" <?= $searchBy=='kategori'?'selected':'' ?>>Kategori</option>
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label small text-muted mb-1">Filter Kategori</label>
-      <select name="kategori" class="form-select">
-        <option value="0">Semua Kategori</option>
-        <?php while ($k = mysqli_fetch_assoc($kategoriList)): ?>
-          <option value="<?= $k['id_kategori'] ?>" <?= $kategoriId==$k['id_kategori']?'selected':'' ?>>
-            <?= htmlspecialchars($k['nama_kategori']) ?>
-          </option>
-        <?php endwhile; ?>
-      </select>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label small text-muted mb-1">Urutkan</label>
-      <select name="sort" class="form-select">
-        <option value="terbaru" <?= $sort=='terbaru'?'selected':'' ?>>Terbaru</option>
-        <option value="murah" <?= $sort=='murah'?'selected':'' ?>>Harga Termurah</option>
-        <option value="mahal" <?= $sort=='mahal'?'selected':'' ?>>Harga Termahal</option>
-      </select>
-    </div>
-    <div class="col-md-1">
-      <button class="btn btn-brand w-100" type="submit">Cari</button>
-    </div>
-  </form>
+  <!-- Pencarian dan seluruh filter kini berada di navbar bagian atas. -->
 
   <p class="text-muted"><?= $totalData ?> buku ditemukan</p>
 
@@ -163,10 +151,14 @@ $kategoriList = mysqli_query($koneksi, "SELECT * FROM kategori ORDER BY nama_kat
               <span class="badge bg-light text-dark border mb-1"><?= htmlspecialchars($b['nama_kategori'] ?? '-') ?></span>
               <h6 class="card-title mb-1"><?= htmlspecialchars($b['judul']) ?></h6>
               <p class="text-muted small mb-1"><?= htmlspecialchars($b['penulis']) ?></p>
+              <?php if ((int)$b['rating_jumlah'] > 0): ?><div class="small text-muted mb-1"><span class="text-warning">★</span> <?= number_format((float)$b['rating_rata'], 1) ?> (<?= (int)$b['rating_jumlah'] ?>)</div><?php endif; ?>
               <p class="harga mb-0"><?= format_rupiah($b['harga']) ?></p>
-              <?php if ($b['stok'] <= 0): ?>
+              <?php if ((int)$b['is_preorder'] === 1): ?>
+                <span class="badge bg-warning-subtle text-dark border mt-1">Pre-Order</span>
+              <?php elseif ($b['stok'] <= 0): ?>
                 <span class="badge bg-danger mt-1">Stok Habis</span>
               <?php endif; ?>
+              <div class="small text-muted mt-1"><?= htmlspecialchars($b['format_buku']) ?></div>
             </div>
           </div>
         </a>
@@ -194,3 +186,4 @@ $kategoriList = mysqli_query($koneksi, "SELECT * FROM kategori ORDER BY nama_kat
 </div>
 
 <?php include 'includes/footer.php'; ?>
+

@@ -44,16 +44,16 @@ include 'includes/header.php';
   <div class="table-responsive">
     <table class="table align-middle">
       <thead>
-        <tr><th>#</th><th>User</th><th>Tanggal</th><th>Total</th><th>Status</th></tr>
+        <tr><th>#</th><th>Pelanggan</th><th>Tanggal</th><th>Total</th><th>Status</th></tr>
       </thead>
       <tbody>
       <?php
-      $q = mysqli_query($koneksi, "SELECT o.*, u.nama FROM orders o JOIN users u ON o.id_user=u.id_user ORDER BY o.tanggal DESC LIMIT 5");
+      $q = mysqli_query($koneksi, "SELECT o.*, COALESCE(o.nama_penerima,u.nama,'Tamu') AS nama, COALESCE(o.email_penerima,u.email,'-') AS email FROM orders o LEFT JOIN users u ON o.id_user=u.id_user ORDER BY o.tanggal DESC LIMIT 5");
       while ($o = mysqli_fetch_assoc($q)):
       ?>
         <tr>
           <td>#<?= $o['id_order'] ?></td>
-          <td><?= htmlspecialchars($o['nama']) ?></td>
+          <td><?= htmlspecialchars($o['nama']) ?><div class="small text-muted"><?= htmlspecialchars($o['email']) ?></div></td>
           <td><?= date('d M Y', strtotime($o['tanggal'])) ?></td>
           <td><?= format_rupiah($o['total']) ?></td>
           <td><?= badge_status($o['status']) ?></td>
